@@ -31,9 +31,6 @@ SYSTEM_PROMPT: str = textwrap.dedent("""\
 """)
 
 ANALYSIS_TEMPLATE: str = textwrap.dedent("""\
-    ## Imagen a analizar
-    {image}
-
     ## Contexto clínico
     {context}
 
@@ -46,9 +43,7 @@ ANALYSIS_TEMPLATE: str = textwrap.dedent("""\
        (adecuada / limitada / no diagnóstica).
 
     2. **HALLAZGOS DESCRIPTIVOS**
-       Descripción objetiva y sistemática: localización, densidad o señal,
-       morfología, bordes, tamaño estimado (si aplicable).
-       Distingue: hallazgos normales · variantes anatómicas · hallazgos patológicos.
+       Describe de forma objetiva sólo si se presentan las características de anatómicas anormales y hallazgos patológicos de la imagen.
 
     3. **IMPRESIÓN DIAGNÓSTICA**
        Diagnósticos diferenciales ordenados por probabilidad.
@@ -65,12 +60,10 @@ ANALYSIS_TEMPLATE: str = textwrap.dedent("""\
 
 @dataclass
 class RadiologiaConfig:
-    """Parámetros opcionales para personalizar el análisis."""
     especialidad: str = "radiología general"
     urgente: bool = False
     estudios_previos: bool = False
     notas_extra: Optional[str] = None
-    etiquetas_adicionales: list[str] = field(default_factory=list)
 
 
 # ─────────────────────────────────────────────
@@ -78,25 +71,12 @@ class RadiologiaConfig:
 # ─────────────────────────────────────────────
 def build_prompt(
     context: str,
-    image: str = "[imagen adjunta]",
-    config: Optional[RadiologiaConfig] = None,
+    radio_config: RadiologiaConfig = None,
 ) -> dict[str, str]:
-    """
-    Construye el payload de prompt listo para Ollama / API.
 
-    Args:
-        context:  Contexto clínico aportado por el profesional.
-                  Ej: "Varón 62 años, disnea progresiva, febre 38.5°C"
-        image:    Descripción de la imagen o ruta/URL de referencia.
-                  Si se envía como archivo, mantener "[imagen adjunta]".
-        config:   Ajustes opcionales (especialidad, urgencia, etc.).
+    # SYSTEM prompt
+    cfg = radio_config or RadiologiaConfig()
 
-    Returns:
-        dict con claves 'system' y 'prompt', listos para pasar a Ollama.
-    """
-    cfg = config or RadiologiaConfig()
-
-    # Construir system prompt enriquecido con config
     system_parts = [SYSTEM_PROMPT]
 
     if cfg.especialidad != "radiología general":
@@ -121,10 +101,9 @@ def build_prompt(
 
     system_final = "\n".join(system_parts)
 
-    # Rellenar template con image y context
+    # USER Prompt
     prompt_final = ANALYSIS_TEMPLATE.format(
-        image=image.strip() or "[imagen adjunta]",
-        context=context.strip() or "Sin contexto clínico aportado.",
+        context = context.strip() or "Sin contexto clínico aportado.",
     )
 
     return {
@@ -137,19 +116,23 @@ def build_prompt(
 #  Uso de ejemplo
 # ─────────────────────────────────────────────
 if __name__ == "__main__":
-    import json, ollama
+    import ollama, config
 
     payload = build_prompt(
         context="Varón 58 años. Disnea de esfuerzo. Fumador 30 paquetes/año.",
-        image="[imagen adjunta]",
-        config=RadiologiaConfig(urgente=False, estudios_previos=False),
+        radio_config=RadiologiaConfig(urgente=False, estudios_previos=False),
     )
 
-    response = ollama.generate(
-        model="qwen2.5vl",
-        system=payload["system"],
-        prompt=payload["prompt"],
-        images=["rx_torax.jpg"],
+    stream = ollama.chat(
+        model=config.MODEL_NAME,
+        messages=[
+            {"role": "system", "content": payload["system"]},
+            {"role": "user", "content": payload["prompt"]},
+        ],
+        stream=True,
     )
 
-    print(response["response"])
+    for chunk in stream:
+        print(chunk["message"]["content"], end="", flush=True)
+
+    print()
