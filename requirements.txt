@@ -1,0 +1,6 @@
+pyside6
+opencv-python
+llama-index
+pandas
+matplotlib
+reportlab
