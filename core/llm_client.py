@@ -26,6 +26,8 @@ class LLMClient:
 
         t_start = time.perf_counter()
 
+        print("Analizando...", "prompt: ")
+        print(user_content["content"])
         response = ollama.chat(
             model=self.model,
             stream=stream,
@@ -37,8 +39,9 @@ class LLMClient:
                 {"role": "system", "content": payload["system"]},
                 user_content
             ],
-            format = FORMAT
+            format = FORMAT,
         )
+        print("2")
 
         if stream:
             full_response = ""

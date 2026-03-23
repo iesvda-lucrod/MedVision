@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 import textwrap
+from models import config
 
 FORMAT = {
   "type": "object",
@@ -72,7 +73,7 @@ Breve descripción de la imagen proporcionada, no más de tres líneas.
 ## RESTRICCIONES
 - Nunca afirmes diagnósticos definitivos; usa lenguaje como "compatible con", "sugestivo de", "no se puede descartar".
 - nota siempre debe ser: "Resultado de modelo IA. Acudir siempre a un profesional para verificar el diagnóstico."
-"""
+""" + f"- modelo debe ser: {config.MODEL_NAME}"
 ANALYSIS_TEMPLATE: str = textwrap.dedent("""\
     ## Contexto clínico
     {context}

@@ -11,7 +11,7 @@ Estructura
   MainWindow (QMainWindow)
   └── QSplitter
       ├── ImagePanel      ← panel izquierdo  (image_panel.py)
-      ├── ChartPanel      ← panel central    (chart_canvas.py)
+      ├── ChartPanel      ← panel central    (prompt_panel.py)
       └── ResultsPanel    ← panel derecho    (results_panel.py)
 
   AnalysisWorker (QThread)
@@ -26,18 +26,14 @@ from __future__ import annotations
 
 import time
 import traceback
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-import numpy as np
-import pandas as pd
-
-from PySide6.QtCore import QSettings, QSize,Qt, QThread, Signal, Slot
+from PySide6.QtCore import QSettings, QSize, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QAction, QCloseEvent,QColor, QPalette
 from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QSizePolicy, QSplitter, QStatusBar, QToolBar, QWidget
 
-from ui.chart_canvas import ChartPanel
+from ui.prompt_panel import PromptPanel
 from ui.image_panel import ImagePanel
 from ui.results_panel import ResultsPanel
 
@@ -88,23 +84,21 @@ class AnalysisWorker(QThread):
         self,
         image_path: str,
         model_service: Any,
+        prompt: str = "",
         parent: Optional[QThread] = None,
     ) -> None:
         super().__init__(parent)
         self._path    = image_path
         self._service = model_service
+        self._prompt  = prompt
 
     def run(self) -> None:
         try:
-            import cv2
-            from core.image_processor import preprocess_image
-
             # 3 · Inferencia ──────────────────────────────────────────
             self.progress.emit("Analizando con el modelo de IA…")
             t0      = time.perf_counter()
-
             
-            result  = self._service.predict("", self._path)
+            result  = self._service.predict(self._prompt, self._path, True)
             elapsed = time.perf_counter() - t0
             self.finished.emit(result, elapsed)
 
@@ -137,7 +131,6 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self._service  = model_service
         self._worker: Optional[AnalysisWorker] = None
-        self._history: list[dict] = []
 
         self._init_ui()
         self._init_toolbar()
@@ -157,7 +150,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(WIN_MIN_W, WIN_MIN_H)
 
         self._panel_image   = ImagePanel()
-        self._panel_chart   = ChartPanel()
+        self._panel_chart   = PromptPanel()
         self._panel_results = ResultsPanel()
 
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -268,6 +261,7 @@ class MainWindow(QMainWindow):
 
     def _wire_signals(self) -> None:
         self._panel_image.image_loaded.connect(self._on_image_loaded)
+        self._panel_chart.prompt_submitted.connect(self._on_prompt_submitted)
 
     # ══════════════════════════════════════════════════════════════════
     # Slots
@@ -279,11 +273,18 @@ class MainWindow(QMainWindow):
         self._act_analyze.setEnabled(True)
         self._act_export.setEnabled(False)
         self._panel_results.clear()
-        self._panel_chart.canvas.clear()
         self._set_status(f"Imagen cargada: {Path(path).name}", "idle")
 
+    @Slot(str)
+    def _on_prompt_submitted(self, prompt: str) -> None:
+        """El panel de prompt disparó Analizar → lanzar análisis si hay imagen."""
+        if not self._panel_image.current_path:
+            self._set_status("Carga una imagen antes de analizar.", "error")
+            return
+        self._start_analysis(prompt=prompt)
+
     @Slot()
-    def _start_analysis(self) -> None:
+    def _start_analysis(self, prompt: Optional[str] = None) -> None:
         """Valida estado y lanza el AnalysisWorker."""
         path = self._panel_image.current_path
         if not path:
@@ -295,11 +296,13 @@ class MainWindow(QMainWindow):
         self._panel_results.show_loading(True, "Iniciando análisis…")
         self._act_analyze.setEnabled(False)
         self._act_export.setEnabled(False)
+        self._panel_chart.set_run_enabled(False)
         self._lbl_time.setText("")
         self._set_status("Ejecutando análisis…", "busy")
         self._set_thread_active(True)
 
-        self._worker = AnalysisWorker(path, self._service, parent=self)
+        active_prompt = prompt or self._panel_chart.get_prompt()
+        self._worker = AnalysisWorker(path, self._service, prompt=active_prompt, parent=self)
         self._worker.progress.connect(self._on_progress)
         self._worker.preprocessed.connect(self._on_preprocessed)
         self._worker.finished.connect(self._on_finished)
@@ -312,32 +315,18 @@ class MainWindow(QMainWindow):
         self._panel_results.show_loading(True, msg)
 
     @Slot(object, object)
-    def _on_preprocessed(self, gray: np.ndarray, clahe: np.ndarray) -> None:
-        """Histograma disponible antes de que termine la inferencia."""
-        self._panel_chart.canvas.plot_histogram(
-            gray,
-            clahe_array=clahe,
-            title="Histograma · preprocesado OpenCV",
-        )
+    def _on_preprocessed(self, gray, clahe) -> None:
+        pass  # preprocesado recibido; sin gráfica de histograma
 
     @Slot(dict, float)
     def _on_finished(self, result: dict, elapsed: float) -> None:
-        """Worker terminó con éxito → actualizar todos los paneles."""
+        """Worker terminó con éxito → actualizar paneles de resultado."""
         self._panel_results.show_loading(False)
-        self._panel_results.display_result(result) 
-
-        # Registrar en historial y redibujar gráfica de tiempos
-        self._history.append({
-            "timestamp": datetime.now(),
-            "seconds":   elapsed,
-            "label":     str(result.get("paciente", "")),
-        })
-        if len(self._history) > 1:
-            df = pd.DataFrame(self._history)
-            self._panel_chart.canvas.plot_inference_times(df)
+        self._panel_results.display_result(result)
 
         self._act_analyze.setEnabled(True)
         self._act_export.setEnabled(True)
+        self._panel_chart.set_run_enabled(True)
 
         slow  = elapsed >= SLOW_SECS
         color = "#c09040" if slow else "#4aaa70"
@@ -354,6 +343,7 @@ class MainWindow(QMainWindow):
         """Worker terminó con error → informar al usuario."""
         self._panel_results.show_loading(False)
         self._act_analyze.setEnabled(True)
+        self._panel_chart.set_run_enabled(True)
         self._set_status("Error en el análisis.", "error")
         self._set_thread_active(False)
         QMessageBox.critical(
@@ -383,7 +373,7 @@ class MainWindow(QMainWindow):
 
         self._panel_image.clear()
         self._panel_results.clear()
-        self._panel_chart.canvas.clear()
+        self._panel_chart.set_run_enabled(True)
         self._act_analyze.setEnabled(False)
         self._act_export.setEnabled(False)
         self._lbl_time.setText("")
