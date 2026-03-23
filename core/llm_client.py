@@ -1,27 +1,24 @@
-from models.prompts import build_prompt, RadiologiaConfig
+from models.prompts import build_prompt, FORMAT
 from models import config
 from core import image_processor
 import ollama
 import re
 import time
+import json
 
 class LLMClient:
     def __init__(self):
         self.model = config.MODEL_NAME
     
-    def analyze(self,
+    def predict(self,
         context: str,
         image_path: str = None,
-        radio_config: RadiologiaConfig = None,
-        stream: bool = True,
+        stream: bool = False,
     ) -> str:
 
-        image_b64 = image_processor.preprocess(image_path)['base64'] if image_path else None
+        image_b64 = image_processor.preprocess_image(image_path)['base64'] if image_path else None
         
-        payload = build_prompt(
-            context=context,
-            radio_config=radio_config,
-        )
+        payload = build_prompt(context=context)
 
         user_content = {"role": "user",   "content": payload["prompt"]}
         if image_b64 is not None:
@@ -40,7 +37,9 @@ class LLMClient:
                 {"role": "system", "content": payload["system"]},
                 user_content
             ],
+            format = FORMAT
         )
+
         if stream:
             full_response = ""
             for chunk in response:
@@ -52,8 +51,8 @@ class LLMClient:
             raw = response.message.content
 
         inference_time = time.perf_counter() - t_start
-
-        return self._parse_response(raw, inference_time)
+        result = json.loads(raw)
+        return result
 
         
     def _parse_response(self, raw: str, inference_time: float = 0.0) -> dict:

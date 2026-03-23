@@ -3,33 +3,76 @@ from dataclasses import dataclass, field
 from typing import Optional
 import textwrap
 
-SYSTEM_PROMPT: str = textwrap.dedent("""\
-    Eres un radiólogo asistente especializado en el análisis de imágenes
-    médicas y radiológicas. Tu función es apoyar a profesionales de la salud
-    —médicos, radiólogos y residentes— con descripciones estructuradas,
-    hallazgos preliminares y orientación diagnóstica.
+FORMAT = {
+  "type": "object",
+  "required": ["paciente", "hallazgos", "impresion", "recomendaciones", "nota", "modelo", "confianza", "descripcion de la imagen"],
+  "properties": {
+    "paciente": {
+      "type": "object",
+      "required": ["Nombre", "Edad", "Estudio"],
+      "properties": {
+        "Nombre":  { "type": "string" },
+        "Edad":    { "type": "string" },
+        "Estudio": { "type": "string" }
+      }
+    },
+    "hallazgos": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["region", "descripcion", "severidad"],
+        "properties": {
+          "region":      { "type": "string" },
+          "descripcion": { "type": "string" },
+          "severidad":   { "type": "string", "enum": ["normal", "leve", "moderado", "severo"] }
+        }
+      }
+    },
+    "descripcion de la imagen":      { "type": "string" },
+    "impresion":        { "type": "string" },
+    "recomendaciones":  { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "nota":             { "type": "string" },
+    "modelo":           { "type": "string" },
+    "confianza":        { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+  }
+}
 
-    IDIOMA: Responde siempre en español (castellano), empleando terminología
-    radiológica estándar. Si el profesional escribe en otro idioma, adáptate.
+SYSTEM_PROMPT = """
+Eres un radiólogo asistente experto en interpretación de imágenes médicas. Analiza estudios radiológicos y genera informes estructurados en español con precisión clínica.
 
-    ROL Y LÍMITES:
-    - Eres una herramienta de apoyo clínico, NO un diagnóstico definitivo.
-    - Nunca recomiendes tratamientos farmacológicos específicos.
-    - Siempre indica la necesidad de correlación clínico-radiológica.
-    - Si detectas un hallazgo crítico o urgente, indícalo AL INICIO con:
-      [HALLAZGO CRÍTICO — REQUIERE EVALUACIÓN MÉDICA INMEDIATA]
+## ROL Y ALCANCE
+Actúas como apoyo al radiólogo humano. Tus análisis son orientativos y nunca reemplazan el criterio clínico ni el diagnóstico médico formal.
 
-    CAPACIDADES:
-    - Radiografías (RX): tórax, columna, extremidades, abdomen, cráneo.
-    - Tomografía computarizada (TC/CT): todos los segmentos, con/sin contraste.
-    - Resonancia magnética (RM): secuencias T1, T2, FLAIR, DWI, gadolinio.
-    - Ecografía, mamografía, densitometría ósea, medicina nuclear.
-    - Imágenes endoscópicas e histopatológicas.
+## IDIOMA
+Responde exclusivamente en español. Usa terminología radiológica estándar: opacidad, consolidación, derrame pleural, atelectasia, silueta cardíaca, mediastino, etc.
 
-    TONO: Profesional, preciso y conciso. Usa viñetas para listas de hallazgos
-    y numeración para diagnósticos diferenciales ordenados por probabilidad.\
-""")
+## REGLAS DE CONTENIDO
 
+**descripcion de la imagen**:
+Breve descripción de la imagen proporcionada, no más de tres líneas.
+
+**hallazgos:**
+- Incluye todas las regiones anatómicas relevantes para el tipo de estudio.
+- Si una región es normal: "Sin alteraciones significativas."
+- Separa múltiples observaciones de una misma región con \n.
+- severidad debe reflejar el hallazgo más relevante de esa región.
+
+**impresion:**
+- Resume los hallazgos más relevantes en lenguaje clínico conciso (1-3 oraciones).
+- Indica siempre si el estudio es globalmente normal o presenta alteraciones.
+
+**recomendaciones:**
+- Solo incluye recomendaciones justificadas por los hallazgos (mínimo 1, máximo 5).
+- Si el estudio es normal: "Correlación clínica." es suficiente.
+
+**confianza:**
+- Valor entre 0.0 y 1.0. Sé conservador ante hallazgos ambiguos o imagen de baja calidad.
+
+## RESTRICCIONES
+- Nunca afirmes diagnósticos definitivos; usa lenguaje como "compatible con", "sugestivo de", "no se puede descartar".
+- nota siempre debe ser: "Resultado de modelo IA. Acudir siempre a un profesional para verificar el diagnóstico."
+"""
 ANALYSIS_TEMPLATE: str = textwrap.dedent("""\
     ## Contexto clínico
     {context}
@@ -37,6 +80,9 @@ ANALYSIS_TEMPLATE: str = textwrap.dedent("""\
     ---
     Proporciona un informe radiológico estructurado con los siguientes
     apartados, en este orden:
+
+    1. **IMAGEN**
+        Descripción breve de la imagen proporcionada, si no hay imagen debe ser "No se ha porporcionado imagen"
 
     1. **TIPO DE ESTUDIO**
        Modalidad, proyección/secuencia, región anatómica y calidad técnica
@@ -58,48 +104,16 @@ ANALYSIS_TEMPLATE: str = textwrap.dedent("""\
 """)
 
 
-@dataclass
-class RadiologiaConfig:
-    especialidad: str = "radiología general"
-    urgente: bool = False
-    estudios_previos: bool = False
-    notas_extra: Optional[str] = None
-
-
 # ─────────────────────────────────────────────
 #  build_prompt() — Construye el prompt final
 # ─────────────────────────────────────────────
 def build_prompt(
     context: str,
-    radio_config: RadiologiaConfig = None,
 ) -> dict[str, str]:
 
     # SYSTEM prompt
-    cfg = radio_config or RadiologiaConfig()
 
-    system_parts = [SYSTEM_PROMPT]
-
-    if cfg.especialidad != "radiología general":
-        system_parts.append(
-            f"\nESPECIALIDAD ACTIVA: {cfg.especialidad}. "
-            "Adapta el análisis a esta subespecialidad."
-        )
-
-    if cfg.urgente:
-        system_parts.append(
-            "\nMODO URGENTE: Resume hallazgos críticos en las primeras "
-            "3 líneas antes del informe completo."
-        )
-
-    if not cfg.estudios_previos:
-        system_parts.append(
-            "\nNOTA: No hay estudios previos disponibles para comparación."
-        )
-
-    if cfg.notas_extra:
-        system_parts.append(f"\nINSTRUCCIONES ADICIONALES:\n{cfg.notas_extra}")
-
-    system_final = "\n".join(system_parts)
+    system_final = SYSTEM_PROMPT
 
     # USER Prompt
     prompt_final = ANALYSIS_TEMPLATE.format(
@@ -118,10 +132,7 @@ def build_prompt(
 if __name__ == "__main__":
     import ollama, config
 
-    payload = build_prompt(
-        context="Varón 58 años. Disnea de esfuerzo. Fumador 30 paquetes/año.",
-        radio_config=RadiologiaConfig(urgente=False, estudios_previos=False),
-    )
+    payload = build_prompt(context="Varón 58 años. Disnea de esfuerzo. Fumador 30 paquetes/año.")
 
     stream = ollama.chat(
         model=config.MODEL_NAME,

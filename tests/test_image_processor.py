@@ -12,13 +12,13 @@ def test_image_processor():
         img_gray = image_processor._to_grayscale(img)
         img_eq = image_processor._equalize(img_gray)
         img_base64 = image_processor._to_base64(img_eq)
-        full_pipeline = image_processor.preprocess(IMG_PATH)
+        full_pipeline = image_processor.preprocess_image(IMG_PATH)
 
         import cv2
         cv2.imwrite(TEST_OUTPUT_PATH+'test_img.png', img)
         cv2.imwrite(TEST_OUTPUT_PATH+'test_img_gray.png', img_gray)
         cv2.imwrite(TEST_OUTPUT_PATH+'test_img_eq.png', img_eq)
-        output = image_processor.preprocess(IMG_PATH)
+        output = image_processor.preprocess_image(IMG_PATH)
         assert "base64" in output and "shape" in output
         return (True, "Correcto")
     except Exception as e:

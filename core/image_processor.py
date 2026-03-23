@@ -23,8 +23,10 @@ def _to_grayscale(img: np.ndarray) -> np.ndarray:
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
     return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-def _equalize(gray: np.ndarray) -> np.ndarray:
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+def _create_clahe(clipLimit=2.0, tileGridSize=(8,8)):
+    return cv2.createCLAHE(clipLimit=clipLimit, tileGridSize=tileGridSize)
+
+def _equalize(gray: np.ndarray, clahe) -> np.ndarray:
     return clahe.apply(gray)
 
 def _to_base64(img: np.ndarray) -> str:
@@ -34,14 +36,16 @@ def _to_base64(img: np.ndarray) -> str:
 
     return base64.b64encode(buffer).decode("utf-8")
 
-def preprocess(path: str) -> dict:
+def preprocess_image(path: str) -> dict:
     raw = _read_image(path)
     gray = _to_grayscale(raw)
-    eq = _equalize(gray)
+    clahe = _create_clahe()
+    eq = _equalize(gray, clahe)
     b64 = _to_base64(eq)
 
     return {
-        "image":  eq,
+        "gray": gray,
+        "clahe_obj": clahe,
+        "eq":  eq,
         "base64": b64,
-        "shape":  eq.shape[:2],
     }
