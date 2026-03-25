@@ -128,20 +128,6 @@ El modelo devuelve un objeto JSON con los siguientes campos:
 
 ---
 
-## Tests
-
-```bash
-# Ejecutar el pipeline completo de tests
-python -m tests.main_test_pipeline
-
-# Ejecutar tests con pytest
-pytest tests/
-```
-
-Los resultados de los tests de imagen se guardan en `tests/outputs/image_processor_test/`.
-
----
-
 ## Dependencias principales
 
 | Paquete          | Uso                                      |
