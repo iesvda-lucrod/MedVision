@@ -2,7 +2,7 @@
 
 Aplicación de escritorio para el análisis asistido por IA de radiografías médicas. Combina un modelo de visión local (vía Ollama) con una interfaz gráfica en PySide6 para generar informes radiológicos estructurados en español.
 
-> ⚠️ **Aviso clínico:** Los resultados generados por RayAI son orientativos y nunca reemplazan el criterio de un profesional médico cualificado.
+**Aviso clínico:** Los resultados generados por RayAI son orientativos y nunca reemplazan el criterio de un profesional médico cualificado.
 
 ---
 
@@ -155,7 +155,3 @@ Los resultados de los tests de imagen se guardan en `tests/outputs/image_process
 | `reportlab`      | Generación de informes en PDF            |
 
 ---
-
-## Licencia
-
-Este proyecto se distribuye únicamente con fines de investigación y asistencia clínica. No está indicado para uso diagnóstico autónomo.
