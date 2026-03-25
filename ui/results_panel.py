@@ -394,8 +394,6 @@ class ResultsPanel(QWidget):
         doc.setDefaultFont(QFont("Courier New", 11))
         cursor = QTextCursor(doc)
 
-        print("RESULT")
-        print("_________")
         print(result)
         
         for key in _SECTION_ORDER:
@@ -413,7 +411,6 @@ class ResultsPanel(QWidget):
             elif key == "paciente" and isinstance(value, dict):
                 self._write_kv(cursor, value)
             else:
-                print("not foudn " + key)
                 self._write_paragraph(cursor, str(value))
 
             self._write_spacer(cursor)

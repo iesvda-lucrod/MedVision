@@ -442,59 +442,6 @@ class MainWindow(QMainWindow):
             self._worker.wait(1500)
         super().closeEvent(event)
 
-
-# ---------------------------------------------------------------------------
-# Stub para desarrollo / pruebas sin modelo real
-# ---------------------------------------------------------------------------
-class _StubModelService:
-    """
-    Servicio de modelo mínimo para ejecutar la UI sin modelo real.
-    Reemplazar por la implementación real en producción.
-    """
-
-    def predict(self, _: np.ndarray) -> dict:
-        time.sleep(1.8)
-        return {
-            "paciente": {
-                "Nombre":  "—",
-                "Edad":    "—",
-                "Estudio": "RX Tórax PA",
-            },
-            "hallazgos": [
-                {
-                    "region":      "Pulmón derecho",
-                    "descripcion": "Sin alteraciones significativas.",
-                    "severidad":   "normal",
-                },
-                {
-                    "region":      "Pulmón izquierdo",
-                    "descripcion": (
-                        "Opacidad basal leve compatible con atelectasia laminar.\n"
-                        "No se observan derrames ni masas."
-                    ),
-                    "severidad":   "leve",
-                },
-                {
-                    "region":      "Mediastino",
-                    "descripcion": "Silueta cardíaca dentro de límites normales.",
-                    "severidad":   "normal",
-                },
-            ],
-            "impresion": (
-                "Estudio dentro de límites normales con mínima atelectasia "
-                "basal izquierda de probable origen postural."
-            ),
-            "recomendaciones": [
-                "Correlación clínica.",
-                "Control radiológico en 4 semanas si persiste la sintomatología.",
-                "Considerar espirometría si hay disnea asociada.",
-            ],
-            "nota":      "Resultado de modelo stub. No usar con fines diagnósticos.",
-            "modelo":    "StubNet-v0",
-            "confianza": 0.87,
-        }
-
-
 # ---------------------------------------------------------------------------
 # Punto de entrada
 # ---------------------------------------------------------------------------
