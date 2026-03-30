@@ -10,7 +10,6 @@ def test_build_prompt_content():
     assert "radiólogo asistente" in payload["system"]
 
 def test_format_schema_structure():
-    # Validar que los campos requeridos por el sistema existan en el schema
     required_fields = ["paciente", "hallazgos", "impresion", "confianza"]
     for field in required_fields:
         assert field in FORMAT["required"]
