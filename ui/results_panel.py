@@ -1,47 +1,21 @@
-"""
-results_panel.py
-================
-Panel derecho de la ventana principal.
-Muestra un spinner mientras el modelo analiza y formatea
-los hallazgos con secciones claras en un QTextEdit.
-
-Dependencias:
-    pip install PySide6
-"""
-
 from __future__ import annotations
 
 import math
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen,QTextCharFormat, QTextCursor, QTextDocument
-from PySide6.QtWidgets import QLabel, QSizePolicy, QStackedWidget, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QTextCharFormat, QTextCursor, QTextDocument
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QStackedWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
-# Paleta de colores del panel
-_COLORS = {
-    "bg":           "#07101e",
-    "bg_edit":      "#050c18",
-    "border":       "#1a3050",
-    "title":        "#4a8abf",
-    "section_head": "#5ba0d0",
-    "normal":       "#a8c8e8",
-    "muted":        "#3a6080",
-    "accent_ok":    "#4aaa70",
-    "accent_warn":  "#c09040",
-    "accent_err":   "#c05060",
-    "spinner_arc":  "#4a8abf",
-    "spinner_bg":   "#0f2035",
-}
-
-# Mapeo de severidad → color hex
-_SEVERITY_COLOR: dict[str, str] = {
-    "normal":    _COLORS["accent_ok"],
-    "leve":      _COLORS["accent_warn"],
-    "moderado":  _COLORS["accent_warn"],
-    "severo":    _COLORS["accent_err"],
-    "crítico":   _COLORS["accent_err"],
-}
+from ui.theme import COLORS, QSS, SEVERITY_COLOR
 
 # Secciones esperadas en el dict de resultado (orden de renderizado)
 _SECTION_ORDER: list[str] = [
@@ -71,16 +45,14 @@ class _SpinnerWidget(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
 
-    # Control
     def start(self) -> None:
         self._angle = 0.0
-        self._timer.start(16)          # ~60 fps
+        self._timer.start(16)   # ~60 fps
 
     def stop(self) -> None:
         self._timer.stop()
         self.update()
 
-    # Eventos
     def _tick(self) -> None:
         self._angle = (self._angle + 4.0) % 360.0
         self.update()
@@ -91,43 +63,33 @@ class _SpinnerWidget(QWidget):
 
         cx, cy, r = self.width() / 2, self.height() / 2, 28
 
-        # Pista de fondo
-        bg_pen = QPen(QColor(_COLORS["spinner_bg"]), 6)
+        bg_pen = QPen(QColor(COLORS["spinner_track"]), 6)
         bg_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(bg_pen)
-        painter.drawEllipse(
-            int(cx - r), int(cy - r), int(r * 2), int(r * 2)
-        )
+        painter.drawEllipse(int(cx - r), int(cy - r), int(r * 2), int(r * 2))
 
-        # Arco animado
-        arc_pen = QPen(QColor(_COLORS["spinner_arc"]), 6)
+        arc_pen = QPen(QColor(COLORS["spinner_arc"]), 6)
         arc_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(arc_pen)
-
-        start_angle = int((90 - self._angle) * 16)
-        span_angle  = int(-260 * 16)
         painter.drawArc(
             int(cx - r), int(cy - r), int(r * 2), int(r * 2),
-            start_angle, span_angle,
+            int((90 - self._angle) * 16),
+            int(-260 * 16),
         )
 
-        # Punto interior pulsante
         pulse = 0.5 + 0.5 * math.sin(math.radians(self._angle * 3))
         dot_r = 4 + int(pulse * 2)
-        dot_color = QColor(_COLORS["spinner_arc"])
+        dot_color = QColor(COLORS["spinner_arc"])
         dot_color.setAlphaF(0.6 + 0.4 * pulse)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(dot_color)
-        painter.drawEllipse(
-            int(cx - dot_r), int(cy - dot_r), dot_r * 2, dot_r * 2
-        )
+        painter.drawEllipse(int(cx - dot_r), int(cy - dot_r), dot_r * 2, dot_r * 2)
 
         painter.end()
 
 
 # Página de carga (spinner + mensaje)
 class _LoadingPage(QWidget):
-    """Página del QStackedWidget visible mientras el modelo analiza."""
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -139,19 +101,15 @@ class _LoadingPage(QWidget):
 
         self._label = QLabel("Analizando radiografía…")
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._label.setStyleSheet(
-            f"""
+        self._label.setStyleSheet(f"""
             QLabel {{
                 font-family: 'Courier New', monospace;
                 font-size: 12px;
                 letter-spacing: 2px;
-                color: {_COLORS['muted']};
+                color: {COLORS['text_muted']};
             }}
-            """
-        )
+            """)
 
-        # Centrar el spinner horizontalmente
-        from PySide6.QtWidgets import QHBoxLayout
         spinner_row = QHBoxLayout()
         spinner_row.addStretch()
         spinner_row.addWidget(self._spinner)
@@ -172,8 +130,6 @@ class _LoadingPage(QWidget):
 
 # Página vacía / placeholder
 class _PlaceholderPage(QWidget):
-    """Página visible cuando aún no hay resultado ni análisis en curso."""
-
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
@@ -181,39 +137,20 @@ class _PlaceholderPage(QWidget):
 
         msg = QLabel("Los hallazgos del modelo\naparecerán aquí.")
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        msg.setStyleSheet(
-            f"""
+        msg.setStyleSheet(f"""
             QLabel {{
                 font-family: 'Courier New', monospace;
                 font-size: 11px;
                 letter-spacing: 1px;
-                color: {_COLORS['muted']};
+                color: {COLORS['text_muted']};
                 line-height: 1.8;
             }}
-            """
-        )
+            """)
         layout.addWidget(msg)
 
 
 # Panel principal
 class ResultsPanel(QWidget):
-    """
-    Panel derecho de la aplicación de análisis de radiografías.
-
-    Señales
-    -------
-    (ninguna pública; el panel es receptor, no emisor)
-
-    Uso
-    ---
-    panel = ResultsPanel()
-    panel.show_loading(True)           # mientras el modelo trabaja
-    panel.display_result(result_dict)  # al recibir la respuesta
-    if panel.has_result():
-        data = panel.current_result()  # para el generador de informes
-    """
-
-    # Índices de páginas en el QStackedWidget
     _PAGE_PLACEHOLDER = 0
     _PAGE_LOADING     = 1
     _PAGE_RESULTS     = 2
@@ -223,7 +160,7 @@ class ResultsPanel(QWidget):
         self._result: Optional[dict] = None
 
         self._build_ui()
-        self._apply_styles()
+        self.setStyleSheet(QSS["results_panel"])
 
     # Construcción de la UI
     def _build_ui(self) -> None:
@@ -231,13 +168,11 @@ class ResultsPanel(QWidget):
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(10)
 
-        # Título
         title = QLabel("ANÁLISIS DE IA")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setObjectName("panelTitle")
         root.addWidget(title)
 
-        # Stack de páginas
         self._stack = QStackedWidget()
         self._stack.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
@@ -247,21 +182,19 @@ class ResultsPanel(QWidget):
         self._loading_page     = _LoadingPage()
         self._results_page     = self._build_results_page()
 
-        self._stack.addWidget(self._placeholder_page)    # 0
-        self._stack.addWidget(self._loading_page)        # 1
-        self._stack.addWidget(self._results_page)        # 2
+        self._stack.addWidget(self._placeholder_page)   # 0
+        self._stack.addWidget(self._loading_page)       # 1
+        self._stack.addWidget(self._results_page)       # 2
 
         self._stack.setCurrentIndex(self._PAGE_PLACEHOLDER)
         root.addWidget(self._stack, stretch=1)
 
-        # Pie: modelo + confianza (se rellena en display_result)
         self._footer = QLabel("")
         self._footer.setAlignment(Qt.AlignmentFlag.AlignRight)
         self._footer.setObjectName("footerLabel")
         root.addWidget(self._footer)
 
     def _build_results_page(self) -> QWidget:
-        """Crea el QTextEdit donde se renderiza el resultado."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -273,84 +206,18 @@ class ResultsPanel(QWidget):
         layout.addWidget(self._text_edit)
         return page
 
-    def _apply_styles(self) -> None:
-        self.setStyleSheet(
-            f"""
-            ResultsPanel {{
-                background-color: {_COLORS['bg']};
-            }}
 
-            QLabel#panelTitle {{
-                font-family: 'Courier New', monospace;
-                font-size: 11px;
-                font-weight: bold;
-                letter-spacing: 3px;
-                color: {_COLORS['title']};
-                padding: 4px 0;
-            }}
 
-            QLabel#footerLabel {{
-                font-family: 'Courier New', monospace;
-                font-size: 9px;
-                color: {_COLORS['muted']};
-                padding: 2px 4px;
-            }}
 
-            QTextEdit#resultsEdit {{
-                background-color: {_COLORS['bg_edit']};
-                border: 1px solid {_COLORS['border']};
-                border-radius: 6px;
-                padding: 12px;
-                color: {_COLORS['normal']};
-                font-family: 'Courier New', monospace;
-                font-size: 11px;
-                selection-background-color: #1a3f60;
-            }}
-
-            QScrollBar:vertical {{
-                background: {_COLORS['bg']};
-                width: 6px;
-                border-radius: 3px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {_COLORS['border']};
-                border-radius: 3px;
-                min-height: 20px;
-            }}
-            QScrollBar::add-line:vertical,
-            QScrollBar::sub-line:vertical {{
-                height: 0px;
-            }}
-
-            QStackedWidget {{
-                background-color: {_COLORS['bg']};
-            }}
-            """
-        )
-
-    # API pública
     def show_loading(self, active: bool, message: str = "Analizando radiografía…") -> None:
-        """
-        Activa o desactiva el spinner de análisis.
-
-        Parámetros
-        ----------
-        active : bool
-            True  → muestra el spinner y oculta el resultado anterior.
-            False → vuelve a la página de resultados (o placeholder si no hay).
-        message : str
-            Texto descriptivo mostrado bajo el spinner.
-        """
         if active:
             self._loading_page.set_message(message)
             self._loading_page.start()
             self._stack.setCurrentIndex(self._PAGE_LOADING)
         else:
             self._loading_page.stop()
-            if self._result is not None:
-                self._stack.setCurrentIndex(self._PAGE_RESULTS)
-            else:
-                self._stack.setCurrentIndex(self._PAGE_PLACEHOLDER)
+            idx = self._PAGE_RESULTS if self._result is not None else self._PAGE_PLACEHOLDER
+            self._stack.setCurrentIndex(idx)
 
     def display_result(self, result: dict) -> None:
         self._result = result
@@ -359,7 +226,6 @@ class ResultsPanel(QWidget):
 
         self._render_document(result)
 
-        # Pie de página con metadatos del modelo
         parts: list[str] = []
         if modelo:
             parts.append(f"Modelo: {modelo}")
@@ -370,32 +236,28 @@ class ResultsPanel(QWidget):
         self._stack.setCurrentIndex(self._PAGE_RESULTS)
 
     def current_result(self) -> Optional[dict]:
-        """
-        Retorna el dict del último resultado renderizado.
-        Útil para el generador de informes.
-        """
         return self._result
 
     def has_result(self) -> bool:
-        """True si hay un resultado disponible para exportar."""
         return self._result is not None
 
     def clear(self) -> None:
-        """Resetea el panel al estado inicial."""
         self._result = None
         self._text_edit.clear()
         self._footer.setText("")
         self._stack.setCurrentIndex(self._PAGE_PLACEHOLDER)
 
-    # Renderizado interno
+
+
+
+
     def _render_document(self, result: dict) -> None:
-        """Construye el documento formateado en el QTextEdit."""
         doc = QTextDocument()
         doc.setDefaultFont(QFont("Courier New", 11))
         cursor = QTextCursor(doc)
 
         print(result)
-        
+
         for key in _SECTION_ORDER:
             value = result.pop(key)
             if value is None:
@@ -417,14 +279,15 @@ class ResultsPanel(QWidget):
 
         for key in result:
             self._write_section_header(cursor, key.upper())
-            value = result.get(key)
-            self._write_paragraph(cursor, str(value))
+            self._write_paragraph(cursor, str(result.get(key)))
 
         self._text_edit.setDocument(doc)
-        # Scroll al inicio
         self._text_edit.moveCursor(QTextCursor.MoveOperation.Start)
 
-    # Helpers de escritura
+
+
+
+
     @staticmethod
     def _fmt(color: str, bold: bool = False, size: int = 11) -> QTextCharFormat:
         fmt = QTextCharFormat()
@@ -435,25 +298,21 @@ class ResultsPanel(QWidget):
         return fmt
 
     def _write_section_header(self, cursor: QTextCursor, text: str) -> None:
-        """Encabezado de sección con línea separadora."""
-        # Línea decorativa
-        cursor.insertText("─" * 42 + "\n", self._fmt(_COLORS["border"]))
-        # Título de sección
-        cursor.insertText(f"  {text}\n", self._fmt(_COLORS["section_head"], bold=True, size=10))
-        cursor.insertText("─" * 42 + "\n", self._fmt(_COLORS["border"]))
+        cursor.insertText("─" * 42 + "\n", self._fmt(COLORS["border"]))
+        cursor.insertText(f"  {text}\n", self._fmt(COLORS["accent_mid"], bold=True, size=10))
+        cursor.insertText("─" * 42 + "\n", self._fmt(COLORS["border"]))
 
     def _write_paragraph(self, cursor: QTextCursor, text: str) -> None:
         for line in text.splitlines():
-            cursor.insertText(f"  {line}\n", self._fmt(_COLORS["normal"]))
+            cursor.insertText(f"  {line}\n", self._fmt(COLORS["text"]))
 
     def _write_spacer(self, cursor: QTextCursor) -> None:
-        cursor.insertText("\n", self._fmt(_COLORS["bg_edit"]))
+        cursor.insertText("\n", self._fmt(COLORS["bg_edit"]))
 
     def _write_hallazgos(self, cursor: QTextCursor, value) -> None:
         if isinstance(value, str):
             self._write_paragraph(cursor, value)
             return
-
         if not isinstance(value, list):
             self._write_paragraph(cursor, str(value))
             return
@@ -463,42 +322,35 @@ class ResultsPanel(QWidget):
                 region      = item.get("region", "")
                 descripcion = item.get("descripcion", "")
                 severidad   = item.get("severidad", "").lower()
-                sev_color   = _SEVERITY_COLOR.get(severidad, _COLORS["normal"])
+                sev_color   = SEVERITY_COLOR.get(severidad, COLORS["text"])
 
-                # Región en azul claro
                 if region:
-                    cursor.insertText(f"  ▸ {region}", self._fmt(_COLORS["title"], bold=True))
+                    cursor.insertText(f"  ▸ {region}", self._fmt(COLORS["accent"], bold=True))
                     if severidad:
                         cursor.insertText(
                             f"  [{severidad.upper()}]",
                             self._fmt(sev_color, bold=True, size=9),
                         )
-                    cursor.insertText("\n", self._fmt(_COLORS["normal"]))
+                    cursor.insertText("\n", self._fmt(COLORS["text"]))
 
-                # Descripción
                 if descripcion:
                     for line in descripcion.splitlines():
-                        cursor.insertText(f"    {line}\n", self._fmt(_COLORS["normal"]))
-                cursor.insertText("\n", self._fmt(_COLORS["normal"]))
+                        cursor.insertText(f"    {line}\n", self._fmt(COLORS["text"]))
+                cursor.insertText("\n", self._fmt(COLORS["text"]))
             else:
-                cursor.insertText(f"  • {item}\n", self._fmt(_COLORS["normal"]))
+                cursor.insertText(f"  • {item}\n", self._fmt(COLORS["text"]))
 
     def _write_lista(self, cursor: QTextCursor, value) -> None:
-        """Renderiza una lista de strings con viñetas."""
         if isinstance(value, str):
             self._write_paragraph(cursor, value)
             return
-
         if isinstance(value, list):
             for item in value:
-                cursor.insertText(f"  →  {item}\n", self._fmt(_COLORS["normal"]))
+                cursor.insertText(f"  →  {item}\n", self._fmt(COLORS["text"]))
         else:
             self._write_paragraph(cursor, str(value))
 
     def _write_kv(self, cursor: QTextCursor, data: dict) -> None:
-        """Renderiza un dict como tabla clave: valor."""
         for k, v in data.items():
-            key_fmt = self._fmt(_COLORS["muted"], bold=True)
-            val_fmt = self._fmt(_COLORS["normal"])
-            cursor.insertText(f"  {k:<18}", key_fmt)
-            cursor.insertText(f"{v}\n", val_fmt)
+            cursor.insertText(f"  {k:<18}", self._fmt(COLORS["text_muted"], bold=True))
+            cursor.insertText(f"{v}\n",     self._fmt(COLORS["text"]))
