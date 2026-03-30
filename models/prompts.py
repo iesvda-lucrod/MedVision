@@ -3,9 +3,7 @@ from typing import Optional
 import textwrap
 from models import config
 
-# ─────────────────────────────────────────────
 #  JSON Schema de salida
-# ─────────────────────────────────────────────
 FORMAT = {
     "type": "object",
     "required": [
@@ -76,9 +74,7 @@ FORMAT = {
     },
 }
 
-# ─────────────────────────────────────────────
 #  SYSTEM PROMPT
-# ─────────────────────────────────────────────
 SYSTEM_PROMPT = f"""\
 Eres un radiólogo asistente experto en interpretación de imágenes médicas.
 Generas informes radiológicos estructurados en español con precisión clínica.
@@ -131,9 +127,7 @@ No incluyas texto antes ni después del JSON, ni bloques de código Markdown.
 - `modelo` debe ser: {config.MODEL_NAME}
 """
 
-# ─────────────────────────────────────────────
 #  USER PROMPT TEMPLATE
-# ─────────────────────────────────────────────
 ANALYSIS_TEMPLATE: str = textwrap.dedent("""\
     ## Contexto clínico
     {context}
@@ -151,14 +145,8 @@ ANALYSIS_TEMPLATE: str = textwrap.dedent("""\
 """)
 
 
-# ─────────────────────────────────────────────
 #  build_prompt() — Construye el prompt final
-# ─────────────────────────────────────────────
 def build_prompt(context: str) -> dict[str, str]:
-    """
-    Devuelve un dict con las claves 'system' y 'prompt' listas para
-    pasarse al cliente de modelo (ollama, openai, anthropic, etc.).
-    """
     return {
         "system": SYSTEM_PROMPT,
         "prompt": ANALYSIS_TEMPLATE.format(
@@ -166,10 +154,8 @@ def build_prompt(context: str) -> dict[str, str]:
         ),
     }
 
-
-# ─────────────────────────────────────────────
-#  Uso de ejemplo
-# ─────────────────────────────────────────────
+"""
+# Ejemplo, ejecutar como módulo para probar
 if __name__ == "__main__":
     import json
     import ollama
@@ -196,3 +182,4 @@ if __name__ == "__main__":
     except json.JSONDecodeError as e:
         print(f"[ERROR] La respuesta no es JSON válido: {e}")
         print(raw)
+"""
