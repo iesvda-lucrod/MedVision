@@ -1,6 +1,8 @@
 pyside6
 opencv-python
+ollama
 llama-index
 pandas
 matplotlib
 reportlab
+pytest
