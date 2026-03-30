@@ -10,11 +10,7 @@ class LLMClient:
     def __init__(self):
         self.model = config.MODEL_NAME
     
-    def predict(self,
-        context: str,
-        image_path: str = None,
-        stream: bool = False,
-    ) -> str:
+    def predict(self, context: str, image_path: str = None, stream: bool = False,) -> str:
 
         image_b64 = image_processor.preprocess_image(image_path)['base64'] if image_path else None
         
@@ -30,15 +26,17 @@ class LLMClient:
         response = ollama.chat(
             model=self.model,
             stream=stream,
+            format = FORMAT,
+            
             options = {
                 "temperature": config.TEMPERATURE,
                 "num_ctx":     config.NUM_CTX,
             },
+
             messages=[
                 {"role": "system", "content": payload["system"]},
                 user_content
             ],
-            format = FORMAT,
         )
 
         if stream:
@@ -51,6 +49,5 @@ class LLMClient:
         else:
             raw = response.message.content
 
-        inference_time = time.perf_counter() - t_start
         result = json.loads(raw)
         return result
