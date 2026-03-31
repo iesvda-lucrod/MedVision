@@ -57,12 +57,6 @@ FORMAT = {
             "maxItems": 5,
             "items": {"type": "string"},
         },
-        "limitaciones": {
-            "type": "array",
-            "minItems": 1,
-            "items": {"type": "string"},
-            "description": "Factores que condicionan la interpretación (calidad, ausencia de estudios previos, falta de datos clínicos, etc.).",
-        },
         "nota":  {"type": "string"},
         "modelo": {"type": "string"},
         "confianza": {
@@ -73,7 +67,6 @@ FORMAT = {
         },
     },
 }
-
 #  SYSTEM PROMPT
 SYSTEM_PROMPT = f"""\
 Eres un radiólogo asistente experto en interpretación de imágenes médicas.
@@ -113,10 +106,6 @@ No incluyas texto antes ni después del JSON, ni bloques de código Markdown.
 ### recomendaciones
 - Solo incluye recomendaciones justificadas por los hallazgos (mín. 1, máx. 5).
 - Si el estudio es normal: ["Correlación clínica."]
-
-### limitaciones
-- Lista los factores que condicionan la interpretación.
-- Incluye al menos uno (p. ej. ausencia de estudios previos, calidad técnica, falta de datos clínicos).
 
 ### confianza
 - Valor entre 0.0 y 1.0. Sé conservador ante hallazgos ambiguos o imagen de baja calidad.
